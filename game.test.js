@@ -1,6 +1,13 @@
 import {Game} from "./game";
 
 describe("Game Tests", () => {
+    let game;
+    beforeEach(() => {
+        game = new Game()
+    })
+    afterEach(() => {
+        game.stop()
+    })
 
     it('should return gridSize', () => {
         const game = new Game();
@@ -61,9 +68,33 @@ describe("Game Tests", () => {
                 (game.player2.position.x !== game.google.position.x ||
                     game.player2.position.y !== game.google.position.y)
             ).toBe(true);
-
+            game.stop()
         }
 
     });
 
+    it('should google change position', async () => {
+        for (let i = 0; i < 10; i++) {
+            game = new Game()
+            game.settings = {
+                gridSize: {
+                    columns: 4,
+                    rows: 1,
+                },
+                googleJumpInterval: 100,
+            }
+            game.start()
+
+            //google position
+            const prevPosition = game.google.position.copy(); //создали копию позиции гугла
+            //waiting
+            await sleep(150)
+            //compare positions
+            expect(prevPosition.equal(game.google.position)).toBe(false)
+            game.stop()
+        }
+    });
+    const sleep = (delay) => {
+        return new Promise(resolve => setTimeout(resolve, delay))
+    }
 })

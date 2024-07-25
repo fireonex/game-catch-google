@@ -4,13 +4,22 @@ export class Game {
             columns: 3,
             rows: 5,
         },
-        googleJumpInterval: 2000 //ms
+        googleJumpInterval: 2000, //ms
+        pointsToWin: 10
     };
     #status = 'pending';
     #player1;
     #player2;
     #google;
     #googleJumpIntervalId;
+    #score = {
+        1: {points: 0},
+        2: {points: 0}
+    }
+
+    constructor(eventEmitter) {
+        this.eventEmitter = eventEmitter;
+    }
 
     #getRandomPosition(takenPosition = []) {
         let newX;
@@ -30,9 +39,11 @@ export class Game {
         const googlePosition = isStartPosition
             //если это стартовая позиция (начало игры) то мы проверяем позиции обоих игроков
             ? this.#getRandomPosition([this.#player1.position, this.#player2.position])
-            //если нет то добавляем ещё позицию гугла
+            //если нет, то добавляем ещё позицию гугла
             : this.#getRandomPosition([this.#player1.position, this.#player2.position, this.#google.position])
         this.#google = new Google(googlePosition)
+
+        this.eventEmitter.emit('changePosition')
     }
 
     #createUnits() {
@@ -45,15 +56,18 @@ export class Game {
         this.#moveGoogleToRandomPosition(true)
     }
 
+    #startGoogleJumpInterval() {
+        this.#googleJumpIntervalId = setInterval(() => {
+            this.#moveGoogleToRandomPosition(false)
+        }, this.#settings.googleJumpInterval)
+    }
 
     start() {
         if (this.#status === 'pending') {
             this.#status = 'in-process';
+            this.#createUnits();
+            this.#startGoogleJumpInterval();
         }
-        this.#createUnits();
-        this.#googleJumpIntervalId = setInterval(() => {
-            this.#moveGoogleToRandomPosition(false)
-        }, this.#settings.googleJumpInterval)
     }
 
     stop() {
@@ -64,64 +78,95 @@ export class Game {
     #isBorder(movingPlayer, step) {
         let prevPlayer1Position = movingPlayer.position.copy()
         if (step.x) {
-            prevPlayer1Position += step.x
+            prevPlayer1Position.x += step.x
             return prevPlayer1Position.x < 1 || prevPlayer1Position.x > this.#settings.gridSize.columns
         }
         if (step.y) {
-            prevPlayer1Position += step.y
+            prevPlayer1Position.y += step.y
             return prevPlayer1Position.y < 1 || prevPlayer1Position.y > this.#settings.gridSize.rows
         }
     }
+
     #isOtherPlayer(movingPlayer, otherPlayer, step) {
         let prevPlayer1Position = movingPlayer.position.copy()
         if (step.x) {
-            prevPlayer1Position += step.x
+            prevPlayer1Position.x += step.x
         }
         if (step.y) {
-            prevPlayer1Position += step.x
+            prevPlayer1Position.y += step.y
         }
         return prevPlayer1Position.equal(otherPlayer.position)
     }
-    #checkGoogleCatching() {}
-    movePlayer1Right() {
-        const step = {x: 1}
-        if (this.#isBorder(this.#player1, step)) {
+
+    #checkGoogleCatching(movingPlayer) {
+        if (movingPlayer.position.equal(this.#google.position)) {
+            this.#score[movingPlayer.id].points++;
+            if (this.#score[movingPlayer.id].points === this.#settings.pointsToWin) {
+                this.stop()
+                this.#google = new Google(new Position(null))
+            } else {
+                this.#moveGoogleToRandomPosition(false)
+            }
+        }
+    }
+
+    #movePlayer(movingPlayer, otherPlayer, step) {
+        const isBorder = this.#isBorder(movingPlayer, step);
+        const isOtherPlayer = this.#isOtherPlayer(movingPlayer, otherPlayer, step);
+
+        if (isBorder || isOtherPlayer) {
             return;
+        }
+        if (step.x) {
+            movingPlayer.position.x += step.x;
+        }
+        if (step.y) {
+            movingPlayer.position.y += step.y;
         }
 
-        if (this.#isOtherPlayer(this.#player1, this.#player2, step)) {
-            return;
-        }
-        this.#checkGoogleCatching
+        this.#checkGoogleCatching(movingPlayer)
+        this.eventEmitter.emit('changePosition')
+    }
+
+    movePlayer1Right() {
+        const step = {x: 1}
+        this.#movePlayer(this.#player1, this.#player2, step)
     }
 
     movePlayer1Left() {
         const step = {x: -1}
+        this.#movePlayer(this.#player1, this.#player2, step)
     }
 
     movePlayer1Up() {
         const step = {y: -1}
+        this.#movePlayer(this.#player1, this.#player2, step)
     }
 
     movePlayer1Down() {
         const step = {y: 1}
+        this.#movePlayer(this.#player1, this.#player2, step)
     }
 
 
     movePlayer2Right() {
         const step = {x: 1}
+        this.#movePlayer(this.#player2, this.#player1, step)
     }
 
     movePlayer2Left() {
         const step = {x: -1}
+        this.#movePlayer(this.#player2, this.#player1, step)
     }
 
     movePlayer2Up() {
         const step = {y: -1}
+        this.#movePlayer(this.#player2, this.#player1, step)
     }
 
     movePlayer2Down() {
         const step = {y: 1}
+        this.#movePlayer(this.#player2, this.#player1, step)
     }
 
     set settings(settings) {
@@ -146,6 +191,10 @@ export class Game {
 
     get google() {
         return this.#google;
+    }
+
+    get score() {
+        return this.#score;
     }
 
 }
@@ -174,9 +223,11 @@ class Position {
         this.x = x;
         this.y = y;
     }
+
     copy() {
         return new Position(this.x, this.y)
     }
+
     equal(somePosition) {
         return this.x === somePosition.x && this.y === somePosition.y
     }

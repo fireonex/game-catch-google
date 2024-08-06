@@ -10,10 +10,10 @@ const game = new Game(eventEmitter);
 // Устанавливаем настройки для игры
 game.settings = {
     gridSize: {
-        rows: 4,
-        columns: 4
+        rows: 5,
+        columns: 5
     },
-    googleJumpInterval: 4000, //ms
+    googleJumpInterval: 3000, //ms
     pointsToWin: 10
 };
 
